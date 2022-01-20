@@ -1,10 +1,7 @@
 sap.ui.define([
 
     "sap/ui/model/FilterOperator",
-    "sap/m/MessageToast",
-    "../model/formatter",
-	"sap/ui/model/json/JSONModel",
-	"sap/m/ColumnListItem"
+
 ], function (BaseController, Filter, FilterOperator, MessageToast, formatter, JSONModel) {
     "use strict";
 
