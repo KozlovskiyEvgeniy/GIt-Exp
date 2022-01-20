@@ -1,69 +1,65 @@
 sap.ui.define([
     "yauheni/kazlouski/app/controller/BaseController",
     "sap/ui/model/json/JSONModel"
-], function (BaseController,
-	JSONModel) {
+], function (BaseController, JSONModel) {
     "use strict";
 
     return BaseController.extend("yauheni.kazlouski.app.controller.ProductDetails", {
         onInit: function() {
             var oComponent = this.getOwnerComponent();
             var oRouter = oComponent.getRouter();
-
+            
             oRouter.getRoute("ProductDetails").attachPatternMatched(this._onPatternMatched, this);
         },
 
         _onPatternMatched: function(oEvent) {
-            var sSupplierID = Number(oEvent.getParameter("arguments").SupplierID);
+            var that = this;
+            var oODataModel = this.getView().getModel("odata");
             var sProductID = oEvent.getParameter("arguments").ProductID;
-            var oEditSuppliersArray = this.getView().getModel("editModel").getData().EditSuppliersArray;
-            var oEditModel = this.getView().getModel("editModel");
 
-            this.getView().bindObject({
-                path: `/Suppliers/${sSupplierID}/Products/${sProductID}`,
-                model: "data"
+            oODataModel.metadataLoaded().then(function () {
+                var sPath = oODataModel.createKey("/Products", {ID: sProductID});
+                
+                that.getView().bindObject({
+                    path: sPath,
+                    model: "odata",
+                    parameters: {
+                        expand: "Supplier"
+                    }
+                });
             });
-
-            var nSupplierObjectID = this.getView().getBindingContext("data").getObject("SupplierID");
-
-            if (oEditSuppliersArray.includes(nSupplierObjectID)) {
-                oEditModel.setProperty("/EditIndicator", true);
-            } else {
-                oEditModel.setProperty("/EditIndicator", false);
-            };
         },
         
-        onNavToSupplierListPress: function (oEvent) {
+        onNavToSupplierListPress: function () {
             this.navigateTo("SuppliersOverview");
         },
         
         onNavToSupplierDetailsPress: function (oEvent) {
-            var sSupplierID = oEvent.getSource().getBindingContext("data").getObject("SupplierID");
-            var nSupplierPosition = this.getSupplierPosition(sSupplierID);
+            var sSupplierID = oEvent.getSource().getBindingContext("odata").getObject("Supplier").ID;
 
-            this.navigateTo("SupplierDetails", {SupplierID: nSupplierPosition});
+            this.navigateTo("SupplierDetails", {SupplierID: sSupplierID});
         },
 
-        onEditButtonPress: function(oEvent) {
+        onEditButtonPress: function() {
             var oEditModel = this.getView().getModel("editModel");
-            var sSupplierID = oEvent.getSource().getBindingContext("data").getObject("SupplierID");
            
-            this.addMutableSupplier(oEditModel, sSupplierID);
-            this.onEditSupplier(oEditModel,sSupplierID)
+            this.toggleEditMode(oEditModel);
         },
 
-        onSaveProductChangesPress: function(oEvent) {
+        onSaveProductChangesPress: function() {
+            var oODataModel = this.getView().getModel("odata");
             var oEditModel = this.getView().getModel("editModel");
-            var sSupplierID = oEvent.getSource().getBindingContext("data").getObject("SupplierID");
 
-            this.deleteMutableSupplier(oEditModel, sSupplierID);
+            oODataModel.submitChanges();
+            this.toggleEditMode(oEditModel)
         },
 
-        onCancelProductChangesPress: function (oEvent) {
+        onCancelProductChangesPress: function () {
+            var oODataModel = this.getView().getModel("odata");
             var oEditModel = this.getView().getModel("editModel");
-            var sSupplierID = oEvent.getSource().getBindingContext("data").getObject("SupplierID");
 
-            this.onCancelEditConfirmation(oEditModel, sSupplierID);
+            oODataModel.resetChanges();
+            this.toggleEditMode(oEditModel);
         }
     });
 });

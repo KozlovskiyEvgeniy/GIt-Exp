@@ -14,39 +14,29 @@ sap.ui.define([
             var oComponent = this.getOwnerComponent();
             var oRouter = oComponent.getRouter();
             var oAppView = new JSONModel({
-                suppliersFilters: [{},{}]
+                suppliersFilters: [
+                    new Filter("Name", FilterOperator.Contains, ""), 
+                    new Filter("Name", FilterOperator.Contains, "")
+                ]
             });
-            
+    
             this.oAppView = oAppView;
             this.getView().setModel(oAppView, "appView");
-            oRouter.getRoute("SuppliersOverview").attachPatternMatched(this._onPatternMatched, this);
         },
 
-        _onPatternMatched: function () {
-            var oSuppliersFilter = this.getView().byId("supplersNameFilter");
-            var oShowAllItem = new sap.ui.core.Item({
-                key: "all",
-                text: "Show all"
-            });
+        onSelectDataRecieved: function() {
+            var oSuppliersFilter = this.byId("supplersNameFilter");
+            var oShowAllItem = new sap.ui.core.Item({key: "all", text: "Show all"});
 
-            if (oSuppliersFilter.getFirstItem().getKey() !== "all") {
-                oSuppliersFilter.insertItem(oShowAllItem, 0);
-                oSuppliersFilter.setSelectedKey("all");
-            };
-
-            this._determineSupplierEditStatus();
-        },
-
-        onFiltersDialogClosed: function () {
-            this._onPatternMatched();
+            oSuppliersFilter.insertItem(oShowAllItem, 0);
+            oSuppliersFilter.setSelectedKey("all");
         },
 
         onSuppliersTableListItemPress: function (oEvent) {
             var oSource = oEvent.getSource();
-            var sSupplierID = oSource.getBindingContext("data").getObject("ID");
-            var nSupplierPosition = this.getSupplierPosition(sSupplierID);
+            var sSupplierID = oSource.getBindingContext("odata").getObject("ID");
 
-            this.navigateTo("SupplierDetails", {SupplierID: nSupplierPosition})
+            this.navigateTo("SupplierDetails", {SupplierID: sSupplierID});
         },
 
         onSupplierSearch: function (oEvent) {
@@ -68,12 +58,14 @@ sap.ui.define([
         onFilterBarSearchPress: function () {
             var sSelectedItemKey = this.byId("supplersNameFilter").getSelectedKey();
             var aSuppliersFilters = this.oAppView.getProperty("/suppliersFilters");
+            var oSuppliersFilter;
 
             if (sSelectedItemKey === "all"){
-                aSuppliersFilters[1] = {};
+                oSuppliersFilter = new Filter("Name", FilterOperator.Contains, "");
+                aSuppliersFilters[1] = oSuppliersFilter;
                 this._onSuppliersFiltersConnect(aSuppliersFilters);
             } else {
-                var oSuppliersFilter = new Filter("Name", FilterOperator.Contains, sSelectedItemKey);
+                oSuppliersFilter = new Filter("Name", FilterOperator.Contains, sSelectedItemKey);
                 aSuppliersFilters[1] = oSuppliersFilter;
                 this._onSuppliersFiltersConnect(aSuppliersFilters);
             };
@@ -88,8 +80,15 @@ sap.ui.define([
 
         onCreateSupplierDialog: function (oEvent) {
             var oView = this.getView();
-            var aInputsArray = this.getView().getControlsByFieldGroupId("createNewSupplierInputs")
-                .filter(control => control.isA("sap.m.Input"));
+            var oODataModel = oView.getModel("odata");
+
+            this.createDeferredGroup("NewSupplier");
+            var oEntryContext = oODataModel.createEntry("/Suppliers", {
+                groupId: "NewSupplier",
+                properties: {
+                    ID: this.getNewID()
+                }
+            });
 
             if (!this.oDialog) {
 				this.oDialog = sap.ui.xmlfragment(
@@ -100,45 +99,33 @@ sap.ui.define([
 				oView.addDependent(this.oDialog);
 			};
 
-            aInputsArray.forEach( function(oInput) {
-                oInput.setValue("");
-                oInput.setValueState("None");
-            });
-            sap.ui.getCore().getMessageManager().registerObject(this.oDialog, true)
+            sap.ui.getCore().getMessageManager().registerObject(this.oDialog, true);
+            this.oDialog.setBindingContext(oEntryContext);
+			this.oDialog.setModel(oODataModel);
 			this.oDialog.open();
         },
 
-        onCreateSupplier: function () {
+        onCreateSupplier: function (oEvent, sSupplierID) {
             var oView = this.getView();
-            var oDataModel = oView.getModel("data");
-            var oEditModel = oView.getModel("editModel");
-            var aCreatedSuppliersArray = oEditModel.getProperty("/CreatedSuppliers");
-            var aSuppliers = oDataModel.getProperty("/Suppliers");
-            var oNewSupplier = $.extend(true, oNewSupplier, oEditModel.getProperty("/SupplierTemplate"));
-            var aInputsArray = this.getView().getControlsByFieldGroupId("createNewSupplierInputs")
-                .filter(control => control.isA("sap.m.Input"));
-            var sNewSupplierID;
+            var oODataModel = oView.getModel("odata");
 
-            if (aSuppliers.length > 0) {
-                sNewSupplierID = Math.max(...aSuppliers.map(oSupplier => !isNaN(oSupplier.ID) ? oSupplier.ID : 0)) + 1;
-            } else {
-                sNewSupplierID = 0;
-            };
-
-            aInputsArray.forEach( function(oInput) {
-                oInput.setValue("");
-                oInput.setValueState("None");
-            });
-            oNewSupplier.ID = sNewSupplierID;
-            aSuppliers.push(oNewSupplier);
-            oDataModel.setProperty("/Suppliers", aSuppliers);
-            aCreatedSuppliersArray.push(oNewSupplier);
-            this.navigateTo("SupplierDetails", {SupplierID: this.getSupplierPosition(sNewSupplierID)});
-            this.addMutableSupplier(oEditModel, sNewSupplierID);
+            oODataModel.submitChanges({groupId: "NewSupplier"}); 
             this.oDialog.close();
+            this.navigateTo("SupplierDetails", {SupplierID: sSupplierID});
         },
 
         onCancelCreateSupplier: function () {
+            var oODataModel = this.getView().getModel("odata");
+			var oEntryContext = this.oDialog.getBindingContext();
+            var aInputsArray = this.getView().getControlsByFieldGroupId("createNewSupplierInputs")
+                .filter(control => control.isA("sap.m.Input") || control.isA("sap.m.DatePicker"));
+
+            aInputsArray.forEach(function (oInput) {
+                oInput.setValue("");
+                oInput.setValueState("None")
+            });
+			
+			oODataModel.resetChanges([oEntryContext.getPath()], undefined, true)
             this.oDialog.close();
         },
 
@@ -148,45 +135,22 @@ sap.ui.define([
 			this.validateInput(oSource);
 		},
 
-        onVerifyInputs: function() {
+        onVerifyInputs: function(oEvent) {
 			var oResourceBundle = this.getView().getModel("i18n");
             var aInputs = this.getView().getControlsByFieldGroupId("createNewSupplierInputs")
                 .filter(control => control.isA("sap.m.Input"));
       		var bValidationError = false;
+            var sSupplierID = oEvent.getSource().getBindingContext().getObject("ID");
 
       		aInputs.forEach(function (oInput) {
       		  bValidationError = this.validateInput(oInput) || bValidationError;
       		}, this);
 		  
       		if (!bValidationError) {
-                this.onCreateSupplier();
+                this.onCreateSupplier(oEvent, sSupplierID);
       		} else {
       		    MessageToast.show(oResourceBundle.getProperty("SupplierValidationErrorMessage"));
       		};
-		},
-
-        _determineSupplierEditStatus: function() {
-            var oEditModel = this.getView().getModel("editModel");
-            var oDataModel = this.getView().getModel("data");
-            var aSuppliersArray = oDataModel.getProperty("/Suppliers");
-			var aEditSuppliersIDs = oEditModel.getProperty("/EditSuppliersArray");
-			var aCreatedSuppliersIDs = oEditModel.getProperty("/CreatedSuppliers").map(supplier => supplier.ID);
-            var oSupplierEditStatusObject = oEditModel.getProperty("/SupplierEditStatus");
-			
-            aSuppliersArray.map(function (oSupplier) {
-                var nSupplierEditIndex =  aEditSuppliersIDs.indexOf(oSupplier.ID);
-                var nSupplierCreatedIndex = aCreatedSuppliersIDs.indexOf(oSupplier.ID);
-
-                if (nSupplierCreatedIndex >= 0 && nSupplierCreatedIndex >=0) {
-                    oSupplier.EditStatus = oSupplierEditStatusObject.Unsaved;
-                } else if (nSupplierEditIndex >= 0 && nSupplierCreatedIndex === -1) {
-                    oSupplier.EditStatus = oSupplierEditStatusObject.Draft;
-                } else {
-                    oSupplier.EditStatus = oSupplierEditStatusObject.Empty;
-                };
-            });
-
-            oDataModel.setProperty("/Suppliers", aSuppliersArray)
-        }
+		}
     });
 });
