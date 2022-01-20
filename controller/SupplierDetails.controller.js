@@ -1,5 +1,6 @@
 sap.ui.define([
-
+    "yauheni/kazlouski/app/controller/BaseController",
+    "sap/ui/model/Filter",
     "sap/ui/model/FilterOperator",
 
 ], function (BaseController, Filter, FilterOperator, MessageToast, formatter, JSONModel) {
