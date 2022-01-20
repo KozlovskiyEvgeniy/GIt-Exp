@@ -1,6 +1,5 @@
 sap.ui.define([
-    "yauheni/kazlouski/app/controller/BaseController",
-    "sap/ui/model/Filter",
+
     "sap/ui/model/FilterOperator",
     "sap/m/MessageToast",
     "../model/formatter",
