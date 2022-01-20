@@ -1,4 +1,9 @@
+sap.ui.define([
 
+    "sap/ui/model/FilterOperator",
+
+], function (BaseController, Filter, FilterOperator, MessageToast, formatter, JSONModel) {
+    "use strict";
 
     return BaseController.extend("yauheni.kazlouski.app.controller.SupplierDetails", {
         formatter: formatter,
